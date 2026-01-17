@@ -2,21 +2,17 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <title>PTN News Live - Master Fixed</title>
+    <title>PTN News Live - Anti-Freeze Master</title>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: white; }
         .studio { position: relative; width: 100vw; height: 100vh; background: url('studio.jpg') center/cover no-repeat; background-color: #111; }
-        
         .visual-box { position: absolute; right: 5%; top: 12%; width: 42%; height: 40%; border: 4px solid #00f2ff; border-radius: 12px; overflow: hidden; z-index: 5; background:#000; box-shadow: 0 0 25px rgba(0, 242, 255, 0.4); }
         #newsImg { width: 100%; height: 100%; object-fit: cover; opacity: 1; transition: opacity 0.5s ease; }
-
         .script-box { position: absolute; left: 3%; top: 12%; width: 45%; height: 60%; background: rgba(0, 0, 0, 0.85); border-left: 10px solid #ff0000; padding: 30px; box-sizing: border-box; z-index: 5; overflow: hidden; }
         #teleprompter { position: relative; font-size: 30px; line-height: 1.6; top: 100%; font-weight: bold; }
-
         .anchor-container { position: absolute; right: 0; bottom: 0; width: 65%; height: 100%; z-index: 10; pointer-events: none; display: flex; justify-content: flex-end; align-items: flex-end; }
         #anchorCanvas { max-width: 100%; max-height: 100%; }
         #anchorVid { display: none; }
-
         .ticker-bar { position: absolute; bottom: 0; width: 100%; height: 85px; background: linear-gradient(90deg, #b00, #500); display: flex; align-items: center; z-index: 20; border-top: 4px solid #fff; }
         marquee { font-size: 40px; font-weight: bold; }
     </style>
@@ -32,7 +28,7 @@
 </div>
 
 <script>
-    // 🔴 यहाँ अपने लिंक भरें
+    // 🔴 1. पक्का करें कि यह CSV लिंक है (pub?output=csv)
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSoAjuzUEQRbN3UUJotq0E00dMk6H9VuYhxKqK4EeJ49m4LTTB5bnZZG-UjRoC3_-nZ6xW6WDMn0T5P/pub?gid=0&single=true&output=csv"; 
     const proxyUrl = "https://script.google.com/macros/s/AKfycbzgGAUTWBmBLrl8K_TYUHe5jodyba3Zh6Vxjeb5TaS29SzJHyYUUESoCGhHKzXP7ARm/exec"; 
 
@@ -54,27 +50,28 @@
         requestAnimationFrame(processChroma);
     }
 
-    // 🟢 Simplified Photo Logic (No Freezing)
-    async function setPhoto(kw) {
+    // 🟢 Anti-Freeze Photo Logic: fetch को बैकग्राउंड में चलाता है
+    function setPhoto(kw) {
         const img = document.getElementById("newsImg");
         const cleanKw = encodeURIComponent(kw.trim());
         const timestamp = Date.now();
 
-        // पहले प्रॉक्सी से कोशिश करें
+        // बैकअप फोटो तुरंत लगा दें ताकि स्क्रीन काली न रहे
+        img.src = `https://loremflickr.com/800/450/${cleanKw}?v=${timestamp}`;
+
+        // प्रॉक्सी से असली फोटो लाने की कोशिश (बिना स्क्रीन फ्रीज किए)
         fetch(`${proxyUrl}?kw=${cleanKw}&t=${timestamp}`)
             .then(res => res.json())
-            .then(data => {
-                if (data.url) img.src = data.url;
-            })
-            .catch(e => {
-                // अगर प्रॉक्सी फेल हो तो तुरंत बैकअप फोटो लें
-                img.src = `https://loremflickr.com/800/450/${cleanKw}?v=${timestamp}`;
-            });
+            .then(data => { if (data.url) img.src = data.url; })
+            .catch(e => console.log("Proxy pending or failed, using backup."));
     }
 
     async function loadData() {
         try {
-            const res = await fetch(csvUrl + "?v=" + Date.now());
+            console.log("Fetching Data...");
+            const res = await fetch(csvUrl + (csvUrl.includes('?') ? '&' : '?') + "v=" + Date.now());
+            if (!res.ok) throw new Error("Sheet error");
+            
             const data = await res.text();
             const rows = data.split('\n').filter(r => r.trim() !== "").slice(1);
             
@@ -89,18 +86,17 @@
 
             if (newsItems.length > 0) {
                 playNews();
+            } else {
+                document.getElementById("teleprompter").innerText = "शीट खाली है, डेटा भरें!";
             }
         } catch (e) {
-            console.error("Data Load Error");
+            console.error("Critical Error:", e);
+            document.getElementById("teleprompter").innerText = "डेटा लोड नहीं हो पाया। लिंक चेक करें।";
         }
     }
 
     function playNews() {
-        if (newsIndex >= newsItems.length) {
-            newsIndex = 0;
-            loadData(); // रिफ्रेश डेटा
-            return;
-        }
+        if (newsIndex >= newsItems.length) { newsIndex = 0; loadData(); return; }
 
         const item = newsItems[newsIndex];
         const prompter = document.getElementById("teleprompter");
@@ -110,7 +106,6 @@
         prompter.innerText = item.script;
         document.getElementById("flashTicker").innerText = "PTN BREAKING: " + item.flash;
 
-        // फोटो बदलने के लिए कहो और आगे बढ़ो (No Await)
         setPhoto(item.visual);
 
         window.speechSynthesis.cancel();
@@ -124,7 +119,7 @@
             canvas.height = video.videoHeight;
             processChroma();
             setTimeout(() => {
-                const duration = item.script.length * 0.17;
+                const duration = item.script.length * 0.18;
                 prompter.style.transition = `top ${duration}s linear`;
                 prompter.style.top = `-${prompter.offsetHeight + 100}px`;
             }, 300);
@@ -138,9 +133,10 @@
         window.speechSynthesis.speak(msg);
     }
 
+    // यूजर क्लिक पर लोड शुरू करें
     window.onclick = () => {
         if (newsItems.length === 0) {
-            document.getElementById("teleprompter").innerText = "लोड हो रहा है...";
+            document.getElementById("teleprompter").innerText = "डेटा लोड हो रहा है, कृपया प्रतीक्षा करें...";
             loadData();
         }
     };
