@@ -2,14 +2,26 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <title>PTN News Live - 2026 Master</title>
+    <title>PTN News Live - Final Perfect Pro</title>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: white; }
         .studio { position: relative; width: 100vw; height: 100vh; background: url('studio.jpg') center/cover no-repeat; background-color: #111; }
         
-        /* विज़ुअल बॉक्स */
-        .visual-box { position: absolute; right: 5%; top: 12%; width: 42%; height: 40%; border: 4px solid #00f2ff; border-radius: 12px; overflow: hidden; z-index: 5; background:#000; box-shadow: 0 0 25px rgba(0, 242, 255, 0.4); }
-        #newsImg { width: 100%; height: 100%; object-fit: cover; opacity: 1; transition: opacity 0.5s ease; }
+        /* विज़ुअल बॉक्स - इसमें फोटो फिट करने का लॉजिक जोड़ा है */
+        .visual-box { 
+            position: absolute; right: 5%; top: 12%; width: 42%; height: 40%; 
+            border: 4px solid #00f2ff; border-radius: 12px; overflow: hidden; 
+            z-index: 5; background:#000; box-shadow: 0 0 25px rgba(0, 242, 255, 0.4); 
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        #newsImg { 
+            width: 100%; height: 100%; 
+            /* 🟢 यह लाइन फोटो को फैलने से रोकेगी और फ्रेम में फिट करेगी */
+            object-fit: contain; 
+            background-color: #000; 
+            opacity: 1; transition: opacity 0.5s ease; 
+        }
 
         /* टेलीप्रॉम्प्टर स्क्रिप्ट */
         .script-box { position: absolute; left: 3%; top: 12%; width: 45%; height: 60%; background: rgba(0, 0, 0, 0.85); border-left: 10px solid #ff0000; padding: 30px; box-sizing: border-box; z-index: 5; overflow: hidden; }
@@ -20,7 +32,7 @@
         #anchorCanvas { max-width: 100%; max-height: 100%; }
         #anchorVid { display: none; }
 
-        /* ब्रेकिंग न्यूज़ टिकर */
+        /* टिकर बार */
         .ticker-bar { position: absolute; bottom: 0; width: 100%; height: 85px; background: linear-gradient(90deg, #b00, #500); display: flex; align-items: center; z-index: 20; border-top: 4px solid #fff; }
         marquee { font-size: 40px; font-weight: bold; color: white; }
     </style>
@@ -36,7 +48,7 @@
 </div>
 
 <script>
-    // 🔴 यहाँ अपने पुराने वर्किंग लिंक ही डालें
+    // 🔴 अपने लिंक यहाँ डालें
     const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSoAjuzUEQRbN3UUJotq0E00dMk6H9VuYhxKqK4EeJ49m4LTTB5bnZZG-UjRoC3_-nZ6xW6WDMn0T5P/pub?gid=0&single=true&output=csv"; 
     const proxyUrl = "https://script.google.com/macros/s/AKfycbzgGAUTWBmBLrl8K_TYUHe5jodyba3Zh6Vxjeb5TaS29SzJHyYUUESoCGhHKzXP7ARm/exec"; 
 
@@ -58,28 +70,23 @@
         requestAnimationFrame(processChroma);
     }
 
-    // 🟢 Updated Photo Logic: सपोर्ट्स नाम और डायरेक्ट लिंक
     function setPhoto(kw) {
         const img = document.getElementById("newsImg");
         const timestamp = Date.now();
         const input = kw.trim();
 
-        // अगर शीट में डायरेक्ट फोटो का लिंक (http/https) है
         if (input.startsWith("http")) {
-            console.log("Loading Direct Link Image");
             img.src = input;
-            img.onload = () => img.style.opacity = 1;
             return;
         }
 
-        // अगर लिंक नहीं है, तो Pexels या Backup से सर्च करें
         const cleanKw = encodeURIComponent(input);
-        img.src = `https://loremflickr.com/800/450/${cleanKw}?v=${timestamp}`; // Instant Backup
+        img.src = `https://loremflickr.com/800/450/${cleanKw}?v=${timestamp}`;
 
         fetch(`${proxyUrl}?kw=${cleanKw}&t=${timestamp}`)
             .then(res => res.json())
             .then(data => { if (data.url) img.src = data.url; })
-            .catch(e => console.log("Proxy pending, using backup."));
+            .catch(e => console.log("Backup visual used"));
     }
 
     async function loadData() {
@@ -98,15 +105,11 @@
             }).filter(i => i.script.length > 5);
 
             if (newsItems.length > 0) playNews();
-            else document.getElementById("teleprompter").innerText = "Sheet is empty!";
-        } catch (e) {
-            console.error("CSV Load Error");
-        }
+        } catch (e) { console.error("CSV Load Error"); }
     }
 
     function playNews() {
         if (newsIndex >= newsItems.length) { newsIndex = 0; loadData(); return; }
-
         const item = newsItems[newsIndex];
         const prompter = document.getElementById("teleprompter");
         
@@ -115,7 +118,6 @@
         prompter.innerText = item.script;
         document.getElementById("flashTicker").innerText = "PTN BREAKING: " + item.flash;
 
-        // फोटो लोड करना
         setPhoto(item.visual);
 
         window.speechSynthesis.cancel();
@@ -143,12 +145,7 @@
         window.speechSynthesis.speak(msg);
     }
 
-    window.onclick = () => {
-        if (newsItems.length === 0) {
-            document.getElementById("teleprompter").innerText = "डेटा लोड हो रहा है...";
-            loadData();
-        }
-    };
+    window.onclick = () => { if (newsItems.length === 0) loadData(); };
 </script>
 </body>
 </html>
