@@ -2,25 +2,21 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <title>PTN News Live - 2026 Edition</title>
+    <title>PTN News Live - Master Fixed</title>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Segoe UI', sans-serif; color: white; }
         .studio { position: relative; width: 100vw; height: 100vh; background: url('studio.jpg') center/cover no-repeat; background-color: #111; }
         
-        /* विज़ुअल बॉक्स */
         .visual-box { position: absolute; right: 5%; top: 12%; width: 42%; height: 40%; border: 4px solid #00f2ff; border-radius: 12px; overflow: hidden; z-index: 5; background:#000; box-shadow: 0 0 25px rgba(0, 242, 255, 0.4); }
-        #newsImg { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.8s ease-in-out; }
+        #newsImg { width: 100%; height: 100%; object-fit: cover; opacity: 1; transition: opacity 0.5s ease; }
 
-        /* स्क्रिप्ट प्रॉम्टर */
         .script-box { position: absolute; left: 3%; top: 12%; width: 45%; height: 60%; background: rgba(0, 0, 0, 0.85); border-left: 10px solid #ff0000; padding: 30px; box-sizing: border-box; z-index: 5; overflow: hidden; }
-        #teleprompter { position: relative; font-size: 32px; line-height: 1.6; top: 100%; font-weight: bold; }
+        #teleprompter { position: relative; font-size: 30px; line-height: 1.6; top: 100%; font-weight: bold; }
 
-        /* एंकर कैनवस */
         .anchor-container { position: absolute; right: 0; bottom: 0; width: 65%; height: 100%; z-index: 10; pointer-events: none; display: flex; justify-content: flex-end; align-items: flex-end; }
         #anchorCanvas { max-width: 100%; max-height: 100%; }
         #anchorVid { display: none; }
 
-        /* टिकर बार */
         .ticker-bar { position: absolute; bottom: 0; width: 100%; height: 85px; background: linear-gradient(90deg, #b00, #500); display: flex; align-items: center; z-index: 20; border-top: 4px solid #fff; }
         marquee { font-size: 40px; font-weight: bold; }
     </style>
@@ -32,7 +28,7 @@
     <div class="script-box"><div id="teleprompter">PTN News: शुरू करने के लिए यहाँ क्लिक करें...</div></div>
     <div class="anchor-container"><canvas id="anchorCanvas"></canvas></div>
     <video id="anchorVid" muted loop crossorigin="anonymous"><source src="anchor_video.mp4" type="video/mp4"></video>
-    <div class="ticker-bar"><marquee id="flashTicker" scrollamount="12">PTN NEWS LIVE...</marquee></div>
+    <div class="ticker-bar"><marquee id="flashTicker">PTN NEWS LIVE...</marquee></div>
 </div>
 
 <script>
@@ -58,29 +54,27 @@
         requestAnimationFrame(processChroma);
     }
 
+    // 🟢 Simplified Photo Logic (No Freezing)
     async function setPhoto(kw) {
         const img = document.getElementById("newsImg");
-        img.style.opacity = 0; // पहले वाली को हटाएँ
-        
-        try {
-            // Cache Buster (?t=Date.now()) ताकि फोटो फँसे नहीं
-            const res = await fetch(`${proxyUrl}?kw=${encodeURIComponent(kw)}&t=${Date.now()}`);
-            const data = await res.json();
-            
-            if (data.url) {
-                img.src = data.url;
-                img.onload = () => img.style.opacity = 1;
-            }
-        } catch (e) {
-            console.error("Photo Error:", e);
-            img.src = `https://loremflickr.com/800/450/${encodeURIComponent(kw)}?v=${Date.now()}`;
-            img.onload = () => img.style.opacity = 1;
-        }
+        const cleanKw = encodeURIComponent(kw.trim());
+        const timestamp = Date.now();
+
+        // पहले प्रॉक्सी से कोशिश करें
+        fetch(`${proxyUrl}?kw=${cleanKw}&t=${timestamp}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.url) img.src = data.url;
+            })
+            .catch(e => {
+                // अगर प्रॉक्सी फेल हो तो तुरंत बैकअप फोटो लें
+                img.src = `https://loremflickr.com/800/450/${cleanKw}?v=${timestamp}`;
+            });
     }
 
     async function loadData() {
         try {
-            const res = await fetch(csvUrl + "?cache=" + Date.now());
+            const res = await fetch(csvUrl + "?v=" + Date.now());
             const data = await res.text();
             const rows = data.split('\n').filter(r => r.trim() !== "").slice(1);
             
@@ -93,24 +87,30 @@
                 };
             }).filter(i => i.script.length > 5);
 
-            if (newsItems.length > 0) playNews();
-            else alert("शीट खाली है!");
+            if (newsItems.length > 0) {
+                playNews();
+            }
         } catch (e) {
-            alert("डेटा लोड नहीं हुआ! अपना CSV लिंक चेक करें।");
+            console.error("Data Load Error");
         }
     }
 
     function playNews() {
-        if (newsIndex >= newsItems.length) newsIndex = 0;
+        if (newsIndex >= newsItems.length) {
+            newsIndex = 0;
+            loadData(); // रिफ्रेश डेटा
+            return;
+        }
+
         const item = newsItems[newsIndex];
         const prompter = document.getElementById("teleprompter");
         
         prompter.style.transition = "none";
         prompter.style.top = "100%";
         prompter.innerText = item.script;
-        document.getElementById("flashTicker").innerText = "BREAKING NEWS: " + item.flash;
+        document.getElementById("flashTicker").innerText = "PTN BREAKING: " + item.flash;
 
-        // फोटो लोड करना
+        // फोटो बदलने के लिए कहो और आगे बढ़ो (No Await)
         setPhoto(item.visual);
 
         window.speechSynthesis.cancel();
@@ -124,7 +124,7 @@
             canvas.height = video.videoHeight;
             processChroma();
             setTimeout(() => {
-                const duration = item.script.length * 0.16;
+                const duration = item.script.length * 0.17;
                 prompter.style.transition = `top ${duration}s linear`;
                 prompter.style.top = `-${prompter.offsetHeight + 100}px`;
             }, 300);
@@ -139,7 +139,10 @@
     }
 
     window.onclick = () => {
-        if (newsItems.length === 0) loadData();
+        if (newsItems.length === 0) {
+            document.getElementById("teleprompter").innerText = "लोड हो रहा है...";
+            loadData();
+        }
     };
 </script>
 </body>
